@@ -2,7 +2,7 @@ const express = require("express");
 const mysql = require("mysql");
 const cors = require("cors");
 const app = express();
-const port = 5000;
+const port = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
@@ -104,6 +104,6 @@ app.get("/hitung-ips/:NIM", (req, res) => {
   });
 });
 
-app.listen(port, () => {
+app.listen(port, "0.0.0.0", () => {
   console.log(`Server berjalan di http://localhost:${port}`);
 });
