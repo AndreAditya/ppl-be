@@ -9,10 +9,10 @@ app.use(express.json());
 
 // Koneksi ke database MySQL
 const db = mysql.createConnection({
-  host: "localhost",
-  user: "root",
-  password: "",
-  database: "ipk_ips_db",
+  host: "bqum05drnznpr03ilj0y-mysql.services.clever-cloud.com",
+  user: "urxjxdk1srnb59q4",
+  password: "iqqpj9AuC7VGP7wdjd5W",
+  database: "bqum05drnznpr03ilj0y",
 });
 
 db.connect((err) => {
