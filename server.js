@@ -15,23 +15,24 @@ const db = mysql.createConnection({
   database: "bqum05drnznpr03ilj0y",
 });
 
-// const db = mysql.createConnection({
-//   host: "localhost",
-//   user: "root",
-//   password: "",
-//   database: "ipk_ips_db",
-// });
-
 db.connect((err) => {
   if (err) throw err;
   console.log("Database connected");
 });
 
-// Endpoint untuk menghitung IPS
+// Fungsi konversi nilai (jika nilai menggunakan skala 0-100)
+function konversiNilai(nilai) {
+  if (nilai >= 85) return 4.0; // A
+  if (nilai >= 65) return 3.0; // B
+  if (nilai >= 50) return 2.0; // C
+  if (nilai >= 40) return 1.0; // D
+  return 0.0; // E
+}
+
+// Endpoint untuk menghitung IPS dan IPK
 app.get("/hitung-ips/:NIM", (req, res) => {
   const NIM = req.params.NIM;
 
-  // Query untuk mendapatkan data lengkap mahasiswa dan mata kuliah
   const sql = `
     SELECT 
       tb_mhs.nama_mhs, 
@@ -48,7 +49,7 @@ app.get("/hitung-ips/:NIM", (req, res) => {
 
   db.query(sql, [NIM], (err, result) => {
     if (err) {
-      console.error("Error fetching KRS data:", err);
+      console.error("Error fetching data:", err);
       return res.status(500).json({ message: "Gagal mengambil data KRS" });
     }
 
@@ -58,16 +59,16 @@ app.get("/hitung-ips/:NIM", (req, res) => {
         .json({ message: "Data tidak ditemukan untuk NIM tersebut" });
     }
 
-    const namaMahasiswa = result[0].nama_mhs; // Nama mahasiswa dari data pertama
+    const namaMahasiswa = result[0].nama_mhs;
     const mataKuliahPerSemester = {};
-    let totalNilai = 0;
-    let totalSKS = 0;
+    const ipsPerSemester = {};
+    const ipkData = [];
+    let totalIPS = 0;
 
-    // Proses data mata kuliah dan perhitungan IPS
+    // Proses data dan perhitungan IPS per semester
     result.forEach((row) => {
       const { semester, nama_mk, sks, nilai } = row;
 
-      // Kelompokkan mata kuliah berdasarkan semester
       if (!mataKuliahPerSemester[semester]) {
         mataKuliahPerSemester[semester] = [];
       }
@@ -77,26 +78,40 @@ app.get("/hitung-ips/:NIM", (req, res) => {
         nilai: nilai,
       });
 
-      // Perhitungan total nilai dan SKS untuk menghitung IPK
+      if (!ipsPerSemester[semester]) {
+        ipsPerSemester[semester] = { totalNilai: 0, totalSKS: 0 };
+      }
       if (nilai > 0 && sks > 0) {
-        totalNilai += nilai * sks;
-        totalSKS += sks;
+        const nilaiSkala4 = konversiNilai(nilai);
+        ipsPerSemester[semester].totalNilai += nilaiSkala4 * sks;
+        ipsPerSemester[semester].totalSKS += sks;
       }
     });
 
-    // Hitung IPK (Indeks Prestasi Kumulatif)
-    const ipk = totalSKS > 0 ? totalNilai / totalSKS : 0;
+    // Hitung IPS untuk setiap semester
+    for (const semester in ipsPerSemester) {
+      const { totalNilai, totalSKS } = ipsPerSemester[semester];
+      const ips = totalSKS > 0 ? totalNilai / totalSKS : 0;
+      ipkData.push(ips);
+      totalIPS += ips;
+    }
 
-    // Buat respons API dengan data mata kuliah per semester
+    // Hitung IPK dari rata-rata IPS
+    const ipk = ipkData.length > 0 ? totalIPS / ipkData.length : 0;
+
+    // Buat respons API
     const response = {
       message: "Perhitungan berhasil",
       nama: namaMahasiswa,
       nim: NIM,
       mataKuliahPerSemester: mataKuliahPerSemester,
+      ipsPerSemester: ipkData.map((ips, index) => ({
+        semester: index + 1,
+        ips: ips.toFixed(2),
+      })),
       ipk: ipk.toFixed(2), // IPK dengan dua desimal
     };
 
-    // Kirim respons
     res.status(200).json(response);
   });
 });
